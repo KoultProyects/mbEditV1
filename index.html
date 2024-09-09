@@ -1,0 +1,543 @@
+<!doctype html>
+<html>
+ <body style="display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
+  <canvas id="canvas"></canvas>
+  <input type="file" id="fileInput" style="display: none;">
+  <script>
+//get canvas
+const canvas = document.getElementById("canvas");
+canvas.width = 512;
+canvas.height = 382;
+
+//load blocks png
+const blocks = new Image();
+blocks.src = "blocks.png";
+
+//load blocks tiles
+const blockTile = {
+ br: [0 * 16, 0 * 16],
+ r: [1 * 16, 0 * 16],
+ cs: [2 * 16, 0 * 16],
+ ms: [3 * 16, 0 * 16],
+ st: [4 * 16, 0 * 16],
+ ob: [5 * 16, 0 * 16],
+ gv: [6 * 16, 0 * 16],
+ dmore: [0 * 16, 1 * 16],
+ gd: [1 * 16, 1 * 16],
+ in: [2 * 16, 1 * 16],
+ clore: [3 * 16, 1 * 16],
+ rs: [4 * 16, 1 * 16],
+ os: [5 * 16, 1 * 16],
+ to: [6 * 16, 1 * 16],
+ lap: [7 * 16, 1 * 16],
+ db: [0 * 16, 2 * 16],
+ gb: [1 * 16, 2 * 16],
+ ib: [2 * 16, 2 * 16],
+ clb: [3 * 16, 2 * 16],
+ topaz: [6 * 16, 2 * 16],
+ lapb: [7 * 16, 2 * 16],
+ dt: [0 * 16, 6 * 16],
+ wd1: [0 * 16, 7 * 16],
+ lv: [0 * 16, 10 * 16],
+ ss: [0 * 16, 22 * 16],
+ sd: [1 * 16, 22 * 16],
+}
+
+//camera
+let cameraPostionX = 0;
+let cameraPostionY = 0;
+
+//get context
+const context = canvas.getContext("2d");
+
+//preferences
+const background1 = "#1a1a1a";
+const background2 = "#2a2a2a";
+const textColor = "#fff";
+const fps = 60;
+
+
+//tactils controls
+const upControl = {
+ positionX: 42,
+ positionY: 105,
+ width: 40,
+ height: 50,
+ draw: function (){
+  fillText("▲", "#fff", "22px monospace", this.positionX + 10, this.positionY + 10);
+ },
+ logic: function(){
+  if ((world) && clickPositionX != null && clickPositionY != null && clickPositionX > this.positionX && clickPositionX < this.positionX + this.width && clickPositionY > this.positionY && clickPositionY < this.positionY + this.height){
+   cameraPostionY++;
+  } 
+ }
+}
+const downControl = {
+ positionX: 42,
+ positionY: 10,
+ width: 40,
+ height: 50,
+ draw: function (){
+  fillText("▼", "#fff", "22px monospace", this.positionX + 10, this.positionY + 10);
+ },
+ logic: function(){
+  if ((world) && clickPositionX != null && clickPositionY != null && clickPositionX > this.positionX && clickPositionX < this.positionX + this.width && clickPositionY > this.positionY && clickPositionY < this.positionY + this.height){
+   cameraPostionY--;
+  } 
+ }
+}
+const leftControl = {
+ positionX: 0,
+ positionY: 60,
+ width: 40,
+ height: 50,
+ draw: function (){
+  fillText("◀", "#fff", "16px monospace", this.positionX + 10, this.positionY + 10);
+ },
+ logic: function(){
+  if ((world) && clickPositionX != null && clickPositionY != null && clickPositionX > this.positionX && clickPositionX < this.positionX + this.width && clickPositionY > this.positionY && clickPositionY < this.positionY + this.height){
+   cameraPostionX--;
+  } 
+ }
+}
+const rightControl = {
+ positionX: 85,
+ positionY: 60,
+ width: 40,
+ height: 50,
+ draw: function (){
+  fillText("▶", "#fff", "16px monospace", this.positionX + 10, this.positionY + 10);
+ },
+ logic: function(){
+  if ((world) && clickPositionX != null && clickPositionY != null && clickPositionX > this.positionX && clickPositionX < this.positionX + this.width && clickPositionY > this.positionY && clickPositionY < this.positionY + this.height){
+   cameraPostionX++;
+  } 
+ }
+}
+
+function controls(){
+ upControl.logic();
+ upControl.draw();
+ downControl.logic();
+ downControl.draw();
+ leftControl.logic();
+ leftControl.draw();
+ rightControl.logic();
+ rightControl.draw();
+}
+
+//selectables options
+class selectableOption {
+ constructor(text, positionX, positionY, group){
+  this.text = text;
+  this.positionX = positionX;
+  this.positionY = positionY;
+  this.group = group;
+ }
+ draw(){
+  fillText(this.text, textColor, "16px monospace", this.positionX + 4, this.positionY + 4);
+ }
+ logic(){
+  if (clickPositionX != null && clickPositionY != null && clickPositionX > this.positionX && clickPositionX < this.positionX + 64 && clickPositionY > this.positionY && clickPositionY < this.positionY + 22){
+   selectedOption[this.group] = this.text;
+  }
+ }
+}
+const selectedOption = {};
+
+//top options
+const fileOption = new selectableOption("file", 0, 360, "topOptions");
+const toolsOption = new selectableOption("tools", 64, 360, "topOptions");
+//tools options
+const penOption = new selectableOption("pen", 16, 330, "toolsOptions");
+const eraserOption = new selectableOption("eraser", 16, 305, "toolsOptions");
+
+//selectables image options
+class selectableImageOption {
+ constructor(id, positionX, positionY, group){
+  this.id = id;
+  this.positionX = positionX;
+  this.positionY = positionY;
+  this.group = group;
+ }
+ draw(){
+  drawTile(blocks, blockTile[this.id][0], blockTile[this.id][1], 16, 16, this.positionX, this.positionY, 16, 16)
+ }
+ logic(){
+  if (clickPositionX != null && clickPositionY != null && clickPositionX > this.positionX && clickPositionX < this.positionX + 16 && clickPositionY > this.positionY && clickPositionY < this.positionY + 16){
+   selectedOption[this.group] = this.id;
+  }
+ }
+}
+
+//blocks image options
+const brImageOption = new selectableImageOption("br", 408, 330, "blocksOptions");
+const rImageOption = new selectableImageOption("r", 408, 305, "blocksOptions");
+const csImageOption = new selectableImageOption("cs", 408, 280, "blocksOptions");
+const msImageOption = new selectableImageOption("ms", 408, 255, "blocksOptions");
+const stImageOption = new selectableImageOption("st", 408, 230, "blocksOptions");
+const obImageOption = new selectableImageOption("ob", 408, 205, "blocksOptions");
+const gvImageOption = new selectableImageOption("gv", 408, 180, "blocksOptions");
+const dmoreImageOption = new selectableImageOption("dmore", 408, 155, "blocksOptions");
+const gdImageOption = new selectableImageOption("gd", 408, 130, "blocksOptions");
+const inImageOption = new selectableImageOption("in", 408, 105, "blocksOptions");
+const cloreImageOption = new selectableImageOption("clore", 408, 80, "blocksOptions");
+const rsImageOption = new selectableImageOption("rs", 408, 55, "blocksOptions");
+const osImageOption = new selectableImageOption("os", 408, 30, "blocksOptions");
+const toImageOption = new selectableImageOption("to", 433, 330, "blocksOptions");
+const lapImageOption = new selectableImageOption("lap", 433, 305, "blocksOptions");
+const dbImageOption = new selectableImageOption("db", 433, 280, "blocksOptions");
+const gbImageOption = new selectableImageOption("gb", 433, 255, "blocksOptions");
+const ibImageOption = new selectableImageOption("ib", 433, 230, "blocksOptions");
+const clbImageOption = new selectableImageOption("clb", 433, 205, "blocksOptions");
+const topazImageOption = new selectableImageOption("topaz", 433, 180, "blocksOptions");
+const lapbImageOption = new selectableImageOption("lapb", 433, 155, "blocksOptions");
+const dtImageOption = new selectableImageOption("dt", 433, 130, "blocksOptions");
+const wd1ImageOption = new selectableImageOption("wd1", 433, 105, "blocksOptions");
+const lvImageOption = new selectableImageOption("lv", 433, 80, "blocksOptions");
+const ssImageOption = new selectableImageOption("ss", 433, 55, "blocksOptions");
+const sdImageOption = new selectableImageOption("sd", 433, 30, "blocksOptions");
+
+function drawBlocksImageOptions(){
+ brImageOption.draw();
+ rImageOption.draw();
+ csImageOption.draw();
+ msImageOption.draw();
+ stImageOption.draw();
+ obImageOption.draw();
+ gvImageOption.draw();
+ dmoreImageOption.draw();
+ gdImageOption.draw();
+ inImageOption.draw();
+ cloreImageOption.draw();
+ rsImageOption.draw();
+ osImageOption.draw();
+ toImageOption.draw();
+ lapImageOption.draw();
+ dbImageOption.draw();
+ gbImageOption.draw();
+ ibImageOption.draw();
+ clbImageOption.draw();
+ topazImageOption.draw();
+ lapbImageOption.draw();
+ dtImageOption.draw();
+ wd1ImageOption.draw();
+ lvImageOption.draw();
+ ssImageOption.draw();
+ sdImageOption.draw();
+}
+
+function blocksOptionsImageLogic(){
+ brImageOption.logic();
+ rImageOption.logic();
+ csImageOption.logic();
+ msImageOption.logic();
+ stImageOption.logic();
+ obImageOption.logic();
+ gvImageOption.logic();
+ dmoreImageOption.logic();
+ gdImageOption.logic();
+ inImageOption.logic();
+ cloreImageOption.logic();
+ rsImageOption.logic();
+ osImageOption.logic();
+ toImageOption.logic();
+ lapImageOption.logic();
+ dbImageOption.logic();
+ gbImageOption.logic();
+ ibImageOption.logic();
+ clbImageOption.logic();
+ topazImageOption.logic();
+ lapbImageOption.logic();
+ dtImageOption.logic();
+ wd1ImageOption.logic();
+ lvImageOption.logic();
+ ssImageOption.logic();
+ sdImageOption.logic();
+}
+
+
+//buttons
+class button {
+ constructor(text, positionX, positionY, action){
+  this.text = text;
+  this.positionX = positionX;
+  this.positionY = positionY;
+  this.action = action;
+ }
+ draw(){
+  fillRect(background2, this.positionX, this.positionY, 64, 22);
+  fillText(this.text, textColor, "16px monospace", this.positionX + 4, this.positionY + 4);
+ }
+ logic(){
+  if (clickPositionX != null && clickPositionY != null && clickPositionX > this.positionX && clickPositionX < this.positionX + 64 && clickPositionY > this.positionY && clickPositionY < this.positionY + 22){
+   this.action()
+  }
+ }
+}
+//file buttons
+const importButton = new button("import", 16, 330, loadFile);
+const exportButton = new button("export", 16, 305, downloadFile);
+
+//main loop
+function canvasLoop(){
+ clear();
+ drawBackground();
+ optionsLogic();
+ drawOptions();
+ buttonsLogic();
+ drawButtons();
+ controls();
+ placeBlock();
+ deleteBlock();
+ drawWorld();
+ canvasResetClick();
+}
+
+//rect
+function fillRect(color, positionX, positionY, width, height){
+ context.fillStyle = color;
+ context.fillRect(positionX, canvas.height - positionY, width,  - height);
+}
+
+//text
+function fillText(text, color, font, positionX, positionY){
+ context.fillStyle = color;
+ context.font = font;
+ context.fillText(text, positionX, canvas.height - positionY);
+}
+
+//draw tile
+function drawTile(image, tileX, tileY, tileWidth, tileHeight, positionX, positionY, width, height){
+ context.drawImage(image, tileX, tileY, tileWidth, tileHeight, positionX, canvas.height - positionY, width, - height)
+}
+
+//clear
+function clear(){
+ context.fillStyle = background1;
+ context.fillRect(0, 0, canvas.width, canvas.height)
+}
+
+//draw background
+function drawBackground(){
+ fillRect(background2, 0, 360, canvas.width, 22);
+ fillRect(background2, 0, 4, 120, 352);
+ fillRect(background2, 392, 4, 120, 352);
+}
+
+//draw options and logic
+function drawOptions(){
+ fileOption.draw();
+ toolsOption.draw();
+ if (selectedOption.topOptions == "tools"){
+  penOption.draw();
+  eraserOption.draw();
+ }
+ if (selectedOption.toolsOptions == "pen"){
+  drawBlocksImageOptions();
+ }
+}
+
+function optionsLogic(){
+ fileOption.logic();
+ toolsOption.logic();
+ if (selectedOption.topOptions == "tools"){
+  penOption.logic();
+  eraserOption.logic();
+ }
+ if (selectedOption.toolsOptions == "pen"){
+  blocksOptionsImageLogic();
+ }
+}
+
+//draw buttons and logic
+function drawButtons(){
+ if (selectedOption.topOptions == "file"){
+  importButton.draw();
+  exportButton.draw();
+ }
+}
+
+function buttonsLogic(){
+ if (selectedOption.topOptions == "file"){
+  importButton.logic();
+  exportButton.logic();
+ }
+}
+
+//get click
+let clickPositionX;
+let clickPositionY;
+function canvasGetClick(event){
+ const rect = canvas.getBoundingClientRect();
+ const canvasClickPositionX = Math.floor(event.clientX - rect.left);
+ const canvasClickPositionY = Math.floor(canvas.height - (event.clientY - rect.top));
+ if (canvasClickPositionX >= 0 && canvasClickPositionX <= canvas.width && canvasClickPositionY >= 0 && canvasClickPositionY <= canvas.height){
+  clickPositionX = canvasClickPositionX;
+  clickPositionY = canvasClickPositionY;
+ }
+}
+canvas.addEventListener("click", canvasGetClick);
+
+//tactil controls
+canvas.addEventListener("touchstart", startTouch);
+canvas.addEventListener("touchend", endTouch);
+canvas.addEventListener("touchmove", moveTouch);
+let isTouching = false;
+function startTouch(event){
+ isTouching = true;
+}
+function endTouch(event){
+ isTouching = false;}
+function moveTouch(event){
+ if (isTouching == true){
+  const touch = event.touches[0];
+  clickPositionX = Math.floor(touch.clientX - canvas.getBoundingClientRect().left);
+  clickPositionY = Math.floor(canvas.height - (touch.clientY - canvas.getBoundingClientRect().top));
+ }
+}
+
+//reset click
+function canvasResetClick(){
+ clickPositionX = null;
+ clickPositionY = null;
+}
+
+//draw world
+function drawWorld(){
+ fillRect("#fff", 128, 90, 256, 192);
+ if (world){
+  let a = 0;
+  while (a < 16){
+   let b = 0;
+   while (b < 12){
+    if (blockTile[world.scene1[a + cameraPostionX][b + cameraPostionY]]){
+     drawBlock(a, b, world.scene1[a + cameraPostionX][b + cameraPostionY]);
+    }
+    b++;
+   }
+   a++;
+  }
+ }
+}
+
+//draw block function
+function drawBlock(positionX, positionY, id){
+ drawTile(blocks, blockTile[id][0], blockTile[id][1], 16, 16, 128 + 256 / 16 * positionX, 90 + 192 / 12 * positionY, 16, 16);
+}
+
+//place and delete block
+let worldClickXBlock;
+let worldClickYBlock;
+function placeBlock(){
+ if ((world && selectedOption.toolsOptions && selectedOption.toolsOptions == "pen") && clickPositionX != null && clickPositionY != null && clickPositionX > 128 && clickPositionX < 128 + 256 && clickPositionY > 90 && clickPositionY < 90 + 192){
+  worldClickXBlock = Math.floor(cameraPostionX + (clickPositionX - 128) / 16);
+  worldClickYBlock = Math.floor(cameraPostionY + (clickPositionY - 90) / 16);
+  world.scene1[worldClickXBlock][worldClickYBlock] = selectedOption.blocksOptions;
+ }
+}
+
+//move camera
+document.addEventListener('keydown', getKey);
+function getKey(event) {
+ if (world){
+  switch(event.key) {
+  case "ArrowUp":
+  case "W":
+  case "w":
+   cameraPostionY++;
+   break;
+  case "ArrowDown":
+  case "S":
+  case "s":
+   cameraPostionY--;
+   break;
+  case "ArrowLeft":
+  case "A":
+  case "a":
+   cameraPostionX--;
+   break;
+  case "ArrowRight":
+  case "D":
+  case "d":
+   cameraPostionX++;
+   break;
+ }
+}
+}
+
+function deleteBlock(){
+ if ((world && selectedOption.toolsOptions && selectedOption.toolsOptions == "eraser") && clickPositionX != null && clickPositionY != null && clickPositionX > 128 && clickPositionX < 128 + 256 && clickPositionY > 90 && clickPositionY < 90 + 192){
+  worldClickXBlock = Math.floor(cameraPostionX + (clickPositionX - 128) / 16);
+  worldClickYBlock = Math.floor(cameraPostionY + (clickPositionY - 90) / 16);
+  world.scene1[worldClickXBlock][worldClickYBlock] = null;
+ }
+}
+
+//load file decode and create a world object
+let fileName;
+let world;
+document.getElementById("fileInput").addEventListener("change", fileInput);
+function fileInput(event){
+ const file = event.target.files[0];
+ if (file){
+  fileName = file.name;
+  const reader = new FileReader();
+  reader.onload = getFile;
+  reader.readAsText(file);
+ }
+}
+function getFile(e){
+ file = e.target.result;
+ world = JSON.parse(decode(file));
+}
+function loadFile(){
+ document.getElementById("fileInput").click();
+}
+
+//download file
+function downloadFile(){
+ if (world){
+  let newFile = encode(JSON.stringify(world));
+  const blob = new Blob([newFile], {type: "text/plain"});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+ }
+}
+
+//decode algorithm
+function decode(encodedString){
+ if (file){
+  var decodedString = "";
+  for (var a = 0, b = encodedString.length; a < b; ){
+   var c = a++;
+   var characterCode = encodedString.charCodeAt(c) - (c * 5 % 33 + 1);
+   decodedString += String.fromCodePoint(characterCode);
+  }
+  return decodedString;
+ }
+}
+
+//encode algorithm
+function encode(decodedString){
+ if (world){
+  var encodedString = "";
+  for (var a = 0, b = decodedString.length; a < b; ){
+   var c = a++;
+   var characterCode = decodedString.charCodeAt(c) + (c * 5 % 33 + 1);
+   encodedString += String.fromCodePoint(characterCode);
+  }
+  return encodedString;
+ }
+}
+
+setInterval(canvasLoop,1000 / fps);
+  </script>
+ </body>
+</html>
